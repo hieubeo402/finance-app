@@ -8,8 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'FinanceFlow — Quản lý Tài chính Cá nhân',
-  description: 'Ứng dụng quản lý tài chính cá nhân thông minh: theo dõi thu nhập, chi tiêu, và khoản nợ của bạn.',
+  title: 'HieubeoFinance — Quản lý Tài chính Cá nhân',
+  description: 'Ứng dụng quản lý tài chính cá nhân bởi hieubeo. Hỗ trợ: 0914.289.656 | hieubeo402@gmail.com',
 };
 
 export default async function RootLayout({

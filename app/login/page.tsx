@@ -47,7 +47,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-2xl shadow-indigo-500/30 mb-4">
             <Wallet className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">FinanceFlow</h1>
+          <h1 className="text-2xl font-bold text-white">HieubeoFinance</h1>
           <p className="text-slate-500 text-sm mt-1">Quản lý tài chính thông minh</p>
         </div>
 
@@ -128,6 +128,14 @@ export default function LoginPage() {
               Đăng ký ngay
             </Link>
           </p>
+
+          <div className="mt-6 pt-4 border-t border-slate-800/60 text-center">
+            <p className="text-[10px] text-slate-700">© 2025 HieubeoFinance — by hieubeo</p>
+            <div className="flex justify-center gap-4 mt-1">
+              <a href="tel:0914289656" className="text-[10px] text-slate-700 hover:text-indigo-400 transition-colors">📞 0914.289.656</a>
+              <a href="mailto:hieubeo402@gmail.com" className="text-[10px] text-slate-700 hover:text-indigo-400 transition-colors">✉️ hieubeo402@gmail.com</a>
+            </div>
+          </div>
         </div>
       </div>
     </div>

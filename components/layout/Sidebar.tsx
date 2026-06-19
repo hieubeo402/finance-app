@@ -47,7 +47,7 @@ export default function Sidebar({ userEmail }: SidebarProps) {
             <Wallet className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-white text-sm leading-tight">FinanceFlow</h1>
+            <h1 className="font-bold text-white text-sm leading-tight">HieubeoFinance</h1>
             <p className="text-xs text-slate-500 leading-tight">Quản lý Tài chính</p>
           </div>
         </div>
@@ -84,7 +84,6 @@ export default function Sidebar({ userEmail }: SidebarProps) {
         })}
       </nav>
 
-      {/* User + Logout */}
       <div className="p-4 border-t border-slate-800 space-y-2">
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
@@ -103,6 +102,26 @@ export default function Sidebar({ userEmail }: SidebarProps) {
           <LogOut className="w-4 h-4" />
           Đăng xuất
         </button>
+
+        {/* Copyright */}
+        <div className="px-3 pt-2 pb-1 border-t border-slate-800/60">
+          <p className="text-[10px] font-semibold text-slate-500">© 2025 HieubeoFinance</p>
+          <p className="text-[10px] text-slate-700 mt-0.5">by hieubeo</p>
+          <div className="mt-1.5 space-y-0.5">
+            <a
+              href="tel:0914289656"
+              className="flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-indigo-400 transition-colors"
+            >
+              <span>📞</span> 0914.289.656
+            </a>
+            <a
+              href="mailto:hieubeo402@gmail.com"
+              className="flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-indigo-400 transition-colors truncate"
+            >
+              <span>✉️</span> hieubeo402@gmail.com
+            </a>
+          </div>
+        </div>
       </div>
     </aside>
   );
