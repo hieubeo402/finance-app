@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { FinanceProvider } from '@/lib/store/FinanceContext';
 import Sidebar from '@/components/layout/Sidebar';
+import { createClient } from '@/lib/supabase/server';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -11,22 +12,29 @@ export const metadata: Metadata = {
   description: 'Ứng dụng quản lý tài chính cá nhân thông minh: theo dõi thu nhập, chi tiêu, và khoản nợ của bạn.',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <html lang="vi" className={inter.variable}>
       <body className="bg-[#0f1117] text-slate-200 antialiased">
-        <FinanceProvider>
-          <div className="flex h-screen overflow-hidden">
-            <Sidebar />
-            <main className="flex-1 overflow-y-auto bg-[#0f1117]">
-              {children}
-            </main>
-          </div>
-        </FinanceProvider>
+        {user ? (
+          <FinanceProvider userId={user.id}>
+            <div className="flex h-screen overflow-hidden">
+              <Sidebar userEmail={user.email ?? ''} />
+              <main className="flex-1 overflow-y-auto bg-[#0f1117]">
+                {children}
+              </main>
+            </div>
+          </FinanceProvider>
+        ) : (
+          <>{children}</>
+        )}
       </body>
     </html>
   );

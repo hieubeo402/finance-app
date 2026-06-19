@@ -5,6 +5,7 @@ import React, {
   useContext,
   useReducer,
   useEffect,
+  useState,
   ReactNode,
 } from 'react';
 import {
@@ -14,40 +15,24 @@ import {
   Debt,
   DebtPayment,
 } from '../types';
-import { initialMockState } from '../mock-data';
+import { createClient } from '../supabase/client';
 
-const STORAGE_KEY = 'finance_app_data';
+// Empty initial state (data comes from Supabase)
+const emptyState: FinanceState = { transactions: [], debts: [] };
 
-// ---- Reducer ----
+// ---- Reducer (same logic, localStorage removed) ----
 function financeReducer(state: FinanceState, action: FinanceAction): FinanceState {
   switch (action.type) {
     case 'LOAD_STATE':
       return action.payload;
-
     case 'ADD_TRANSACTION':
-      return {
-        ...state,
-        transactions: [action.payload, ...state.transactions],
-      };
-
+      return { ...state, transactions: [action.payload, ...state.transactions] };
     case 'DELETE_TRANSACTION':
-      return {
-        ...state,
-        transactions: state.transactions.filter((t) => t.id !== action.payload),
-      };
-
+      return { ...state, transactions: state.transactions.filter((t) => t.id !== action.payload) };
     case 'ADD_DEBT':
-      return {
-        ...state,
-        debts: [action.payload, ...state.debts],
-      };
-
+      return { ...state, debts: [action.payload, ...state.debts] };
     case 'DELETE_DEBT':
-      return {
-        ...state,
-        debts: state.debts.filter((d) => d.id !== action.payload),
-      };
-
+      return { ...state, debts: state.debts.filter((d) => d.id !== action.payload) };
     case 'RECORD_DEBT_PAYMENT': {
       const { debtId, payment } = action.payload;
       return {
@@ -55,17 +40,15 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
         debts: state.debts.map((debt) => {
           if (debt.id !== debtId) return debt;
           const newPaid = debt.paidAmount + payment.amount;
-          const newStatus = newPaid >= debt.totalAmount ? 'Đã trả xong' : 'Đang nợ';
           return {
             ...debt,
             paidAmount: Math.min(newPaid, debt.totalAmount),
-            status: newStatus,
+            status: newPaid >= debt.totalAmount ? 'Đã trả xong' : 'Đang nợ',
             payments: [...debt.payments, payment],
           };
         }),
       };
     }
-
     default:
       return state;
   }
@@ -75,7 +58,7 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
 interface FinanceContextType {
   state: FinanceState;
   dispatch: React.Dispatch<FinanceAction>;
-  // Computed helpers
+  loading: boolean;
   totalIncome: number;
   totalExpense: number;
   currentBalance: number;
@@ -86,79 +69,157 @@ interface FinanceContextType {
 const FinanceContext = createContext<FinanceContextType | null>(null);
 
 // ---- Provider ----
-export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(financeReducer, initialMockState);
+export function FinanceProvider({ children, userId }: { children: ReactNode; userId: string }) {
+  const [state, dispatch] = useReducer(financeReducer, emptyState);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
-  // Load from localStorage on mount
+  // Load data from Supabase on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed: FinanceState = JSON.parse(stored);
-        dispatch({ type: 'LOAD_STATE', payload: parsed });
+    if (!userId) return;
+
+    async function loadData() {
+      setLoading(true);
+      try {
+        // Load transactions
+        const { data: txData } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: false });
+
+        // Load debts with payments
+        const { data: debtData } = await supabase
+          .from('debts')
+          .select('*, debt_payments(*)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        const transactions: Transaction[] = (txData ?? []).map((r: any) => ({
+          id: r.id,
+          type: r.type,
+          amount: r.amount,
+          category: r.category,
+          date: r.date,
+          note: r.note ?? '',
+          createdAt: r.created_at,
+        }));
+
+        const debts: Debt[] = (debtData ?? []).map((r: any) => ({
+          id: r.id,
+          creditorName: r.creditor_name,
+          totalAmount: r.total_amount,
+          paidAmount: r.paid_amount,
+          dueDate: r.due_date ?? new Date().toISOString(),
+          status: r.status,
+          note: r.note ?? '',
+          createdAt: r.created_at,
+          payments: (r.debt_payments ?? []).map((p: any) => ({
+            id: p.id,
+            amount: p.amount,
+            date: p.date,
+            note: p.note ?? '',
+          })),
+        }));
+
+        dispatch({ type: 'LOAD_STATE', payload: { transactions, debts } });
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      // ignore parse errors
     }
-  }, []);
 
-  // Save to localStorage on state change
-  useEffect(() => {
+    loadData();
+  }, [userId]);
+
+  // ---- Supabase-backed dispatch ----
+  const supabaseDispatch: React.Dispatch<FinanceAction> = async (action) => {
+    // Optimistic UI update first
+    dispatch(action);
+
+    // Then sync to Supabase
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // ignore storage errors
+      switch (action.type) {
+        case 'ADD_TRANSACTION': {
+          const t = action.payload as Transaction;
+          await supabase.from('transactions').insert({
+            id: t.id,
+            user_id: userId,
+            type: t.type,
+            amount: t.amount,
+            category: t.category,
+            date: t.date,
+            note: t.note,
+          });
+          break;
+        }
+        case 'DELETE_TRANSACTION': {
+          await supabase.from('transactions').delete().eq('id', action.payload);
+          break;
+        }
+        case 'ADD_DEBT': {
+          const d = action.payload as Debt;
+          await supabase.from('debts').insert({
+            id: d.id,
+            user_id: userId,
+            creditor_name: d.creditorName,
+            total_amount: d.totalAmount,
+            paid_amount: 0,
+            due_date: d.dueDate,
+            status: d.status,
+            note: d.note,
+          });
+          break;
+        }
+        case 'DELETE_DEBT': {
+          await supabase.from('debts').delete().eq('id', action.payload);
+          break;
+        }
+        case 'RECORD_DEBT_PAYMENT': {
+          const { debtId, payment } = action.payload as { debtId: string; payment: DebtPayment };
+          // Get current debt to compute new paid amount
+          const debt = state.debts.find((d) => d.id === debtId);
+          if (!debt) break;
+          const newPaid = Math.min(debt.paidAmount + payment.amount, debt.totalAmount);
+          const newStatus = newPaid >= debt.totalAmount ? 'Đã trả xong' : 'Đang nợ';
+
+          await supabase.from('debt_payments').insert({
+            id: payment.id,
+            debt_id: debtId,
+            amount: payment.amount,
+            date: payment.date,
+            note: payment.note,
+          });
+          await supabase.from('debts').update({
+            paid_amount: newPaid,
+            status: newStatus,
+          }).eq('id', debtId);
+          break;
+        }
+      }
+    } catch (err) {
+      console.error('Supabase sync error:', err);
     }
-  }, [state]);
+  };
 
   // Computed values
-  const totalIncome = state.transactions
-    .filter((t) => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-
-  const totalExpense = state.transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
-
+  const totalIncome = state.transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = state.transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const currentBalance = totalIncome - totalExpense;
-
   const now = new Date();
   const currentMonthIncome = state.transactions
-    .filter(
-      (t) =>
-        t.type === 'income' &&
-        new Date(t.date).getMonth() === now.getMonth() &&
-        new Date(t.date).getFullYear() === now.getFullYear()
-    )
-    .reduce((sum, t) => sum + t.amount, 0);
-
+    .filter((t) => t.type === 'income' && new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear())
+    .reduce((s, t) => s + t.amount, 0);
   const currentMonthExpense = state.transactions
-    .filter(
-      (t) =>
-        t.type === 'expense' &&
-        new Date(t.date).getMonth() === now.getMonth() &&
-        new Date(t.date).getFullYear() === now.getFullYear()
-    )
-    .reduce((sum, t) => sum + t.amount, 0);
+    .filter((t) => t.type === 'expense' && new Date(t.date).getMonth() === now.getMonth() && new Date(t.date).getFullYear() === now.getFullYear())
+    .reduce((s, t) => s + t.amount, 0);
 
   return (
-    <FinanceContext.Provider
-      value={{
-        state,
-        dispatch,
-        totalIncome,
-        totalExpense,
-        currentBalance,
-        currentMonthIncome,
-        currentMonthExpense,
-      }}
-    >
+    <FinanceContext.Provider value={{ state, dispatch: supabaseDispatch, loading, totalIncome, totalExpense, currentBalance, currentMonthIncome, currentMonthExpense }}>
       {children}
     </FinanceContext.Provider>
   );
 }
 
-// ---- Hook ----
 export function useFinance(): FinanceContextType {
   const ctx = useContext(FinanceContext);
   if (!ctx) throw new Error('useFinance must be used within FinanceProvider');

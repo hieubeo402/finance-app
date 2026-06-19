@@ -1,0 +1,204 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { Wallet, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle } from 'lucide-react';
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (password !== confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+      },
+    });
+
+    if (error) {
+      if (error.message.includes('already registered')) {
+        setError('Email này đã được đăng ký. Vui lòng đăng nhập.');
+      } else {
+        setError(error.message);
+      }
+      setLoading(false);
+      return;
+    }
+
+    setSuccess(true);
+    setLoading(false);
+  };
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-[#0f1117] flex items-center justify-center p-4">
+        <div className="bg-[#1a1f2e] border border-slate-800 rounded-2xl p-10 max-w-md w-full text-center shadow-2xl">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-500/15 mb-5">
+            <CheckCircle className="w-8 h-8 text-emerald-400" />
+          </div>
+          <h2 className="text-white font-bold text-xl mb-2">Đăng ký thành công!</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            Chúng tôi đã gửi email xác nhận đến <span className="text-white font-medium">{email}</span>.
+            Vui lòng kiểm tra hộp thư và nhấn link xác nhận để kích hoạt tài khoản.
+          </p>
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-xl transition-all"
+          >
+            Về trang đăng nhập
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0f1117] flex items-center justify-center p-4">
+      {/* Background glow */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/3 w-[400px] h-[400px] bg-violet-600/8 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 shadow-2xl shadow-indigo-500/30 mb-4">
+            <Wallet className="w-7 h-7 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">FinanceFlow</h1>
+          <p className="text-slate-500 text-sm mt-1">Quản lý tài chính thông minh</p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-[#1a1f2e] border border-slate-800 rounded-2xl p-8 shadow-2xl">
+          <h2 className="text-white font-semibold text-lg mb-1">Tạo tài khoản</h2>
+          <p className="text-slate-500 text-sm mb-6">Bắt đầu quản lý tài chính ngay hôm nay!</p>
+
+          {error && (
+            <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleRegister} className="space-y-4">
+            {/* Email */}
+            <div>
+              <label className="block text-slate-400 text-xs font-medium mb-1.5">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  id="register-email"
+                  type="email"
+                  required
+                  placeholder="email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-800/60 border border-slate-700 text-white placeholder-slate-600 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-slate-400 text-xs font-medium mb-1.5">Mật khẩu</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  id="register-password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Tối thiểu 6 ký tự"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-800/60 border border-slate-700 text-white placeholder-slate-600 rounded-xl pl-10 pr-10 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-slate-400 text-xs font-medium mb-1.5">Xác nhận mật khẩu</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  id="register-confirm-password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Nhập lại mật khẩu"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full bg-slate-800/60 border text-white placeholder-slate-600 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none transition-colors ${
+                    confirmPassword && confirmPassword !== password
+                      ? 'border-red-500/50 focus:border-red-500'
+                      : 'border-slate-700 focus:border-indigo-500'
+                  }`}
+                />
+              </div>
+              {confirmPassword && confirmPassword !== password && (
+                <p className="text-red-400 text-xs mt-1">Mật khẩu không khớp</p>
+              )}
+            </div>
+
+            {/* Submit */}
+            <button
+              id="register-submit"
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all duration-200 shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 mt-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang tạo tài khoản...
+                </>
+              ) : (
+                'Tạo tài khoản'
+              )}
+            </button>
+          </form>
+
+          <p className="text-center text-slate-500 text-sm mt-6">
+            Đã có tài khoản?{' '}
+            <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+              Đăng nhập
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
