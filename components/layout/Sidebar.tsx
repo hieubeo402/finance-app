@@ -10,6 +10,9 @@ import {
   Wallet,
   ChevronRight,
   LogOut,
+  DollarSign,
+  Target,
+  User,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -17,7 +20,10 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, description: 'Tổng quan tài chính' },
   { href: '/expenses', label: 'Chi tiêu', icon: TrendingDown, description: 'Quản lý chi tiêu' },
   { href: '/income', label: 'Thu nhập', icon: TrendingUp, description: 'Quản lý thu nhập' },
+  { href: '/loans', label: 'Cho vay', icon: DollarSign, description: 'Quản lý cho vay' },
+  { href: '/budgets', label: 'Ngân sách', icon: Target, description: 'Hạn mức chi tiêu' },
   { href: '/debts', label: 'Trả nợ', icon: CreditCard, description: 'Quản lý khoản nợ' },
+  { href: '/account', label: 'Tài khoản', icon: User, description: 'Cài đặt tài khoản' },
 ];
 
 interface SidebarProps {
@@ -39,7 +45,7 @@ export default function Sidebar({ userEmail }: SidebarProps) {
   const avatar = userEmail ? userEmail[0].toUpperCase() : 'U';
 
   return (
-    <aside className="w-64 min-h-screen flex flex-col bg-[#1a1f2e] border-r border-slate-800 shrink-0">
+    <aside className="w-64 min-h-screen hidden lg:flex flex-col bg-[#1a1f2e] border-r border-slate-800 shrink-0">
       {/* Logo */}
       <div className="p-6 border-b border-slate-800">
         <div className="flex items-center gap-3">

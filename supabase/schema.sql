@@ -77,3 +77,60 @@ CREATE POLICY "payments: user can delete own" ON debt_payments
   FOR DELETE USING (
     debt_id IN (SELECT id FROM debts WHERE user_id = auth.uid())
   );
+
+-- ============================================================
+-- LOANS (khoản cho vay)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS loans (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  borrower_name TEXT NOT NULL,
+  total_amount BIGINT NOT NULL,
+  paid_amount BIGINT DEFAULT 0,
+  loan_date TIMESTAMPTZ NOT NULL,
+  due_date TIMESTAMPTZ,
+  status TEXT DEFAULT 'Đang vay',
+  note TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS loan_payments (
+  id TEXT PRIMARY KEY,
+  loan_id TEXT NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
+  amount BIGINT NOT NULL,
+  date TIMESTAMPTZ NOT NULL,
+  note TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- BUDGETS (mục tiêu chi tiêu)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS budgets (
+  id TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  monthly_limit BIGINT NOT NULL,
+  month INT NOT NULL,
+  year INT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, category, month, year)
+);
+
+-- ============================================================
+-- RLS for loans, loan_payments, budgets
+-- ============================================================
+
+ALTER TABLE loans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE loan_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE budgets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "loans: user own" ON loans FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "loan_payments: user own" ON loan_payments FOR ALL
+  USING (loan_id IN (SELECT id FROM loans WHERE user_id = auth.uid()));
+
+CREATE POLICY "budgets: user own" ON budgets FOR ALL USING (auth.uid() = user_id);
+

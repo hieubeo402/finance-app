@@ -94,4 +94,6 @@ export const mockDebts: Debt[] = [
 export const initialMockState: FinanceState = {
   transactions: mockTransactions,
   debts: mockDebts,
+  loans: [],
+  budgets: [],
 };

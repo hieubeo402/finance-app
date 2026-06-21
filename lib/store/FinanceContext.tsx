@@ -14,21 +14,26 @@ import {
   Transaction,
   Debt,
   DebtPayment,
+  Loan,
+  LoanPayment,
+  Budget,
 } from '../types';
 import { createClient } from '../supabase/client';
 
 // Empty initial state (data comes from Supabase)
-const emptyState: FinanceState = { transactions: [], debts: [] };
+const emptyState: FinanceState = { transactions: [], debts: [], loans: [], budgets: [] };
 
-// ---- Reducer (same logic, localStorage removed) ----
+// ---- Reducer ----
 function financeReducer(state: FinanceState, action: FinanceAction): FinanceState {
   switch (action.type) {
     case 'LOAD_STATE':
       return action.payload;
+
     case 'ADD_TRANSACTION':
       return { ...state, transactions: [action.payload, ...state.transactions] };
     case 'DELETE_TRANSACTION':
       return { ...state, transactions: state.transactions.filter((t) => t.id !== action.payload) };
+
     case 'ADD_DEBT':
       return { ...state, debts: [action.payload, ...state.debts] };
     case 'DELETE_DEBT':
@@ -49,6 +54,42 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
         }),
       };
     }
+
+    case 'ADD_LOAN':
+      return { ...state, loans: [action.payload, ...state.loans] };
+    case 'DELETE_LOAN':
+      return { ...state, loans: state.loans.filter((l) => l.id !== action.payload) };
+    case 'RECORD_LOAN_PAYMENT': {
+      const { loanId, payment } = action.payload;
+      return {
+        ...state,
+        loans: state.loans.map((loan) => {
+          if (loan.id !== loanId) return loan;
+          const newPaid = loan.paidAmount + payment.amount;
+          const isPaidOff = newPaid >= loan.totalAmount;
+          return {
+            ...loan,
+            paidAmount: Math.min(newPaid, loan.totalAmount),
+            status: isPaidOff ? 'Đã thu hồi' : loan.status === 'Quá hạn' ? 'Quá hạn' : 'Đang vay',
+            payments: [...loan.payments, payment],
+          };
+        }),
+      };
+    }
+
+    case 'UPSERT_BUDGET': {
+      const exists = state.budgets.some((b) => b.id === action.payload.id);
+      if (exists) {
+        return {
+          ...state,
+          budgets: state.budgets.map((b) => (b.id === action.payload.id ? action.payload : b)),
+        };
+      }
+      return { ...state, budgets: [...state.budgets, action.payload] };
+    }
+    case 'DELETE_BUDGET':
+      return { ...state, budgets: state.budgets.filter((b) => b.id !== action.payload) };
+
     default:
       return state;
   }
@@ -95,6 +136,19 @@ export function FinanceProvider({ children, userId }: { children: ReactNode; use
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
 
+        // Load loans with payments
+        const { data: loanData } = await supabase
+          .from('loans')
+          .select('*, loan_payments(*)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        // Load budgets
+        const { data: budgetData } = await supabase
+          .from('budgets')
+          .select('*')
+          .eq('user_id', userId);
+
         const transactions: Transaction[] = (txData ?? []).map((r: any) => ({
           id: r.id,
           type: r.type,
@@ -122,7 +176,33 @@ export function FinanceProvider({ children, userId }: { children: ReactNode; use
           })),
         }));
 
-        dispatch({ type: 'LOAD_STATE', payload: { transactions, debts } });
+        const loans: Loan[] = (loanData ?? []).map((r: any) => ({
+          id: r.id,
+          borrowerName: r.borrower_name,
+          totalAmount: r.total_amount,
+          paidAmount: r.paid_amount,
+          loanDate: r.loan_date,
+          dueDate: r.due_date ?? '',
+          status: r.status,
+          note: r.note ?? '',
+          createdAt: r.created_at,
+          payments: (r.loan_payments ?? []).map((p: any) => ({
+            id: p.id,
+            amount: p.amount,
+            date: p.date,
+            note: p.note ?? '',
+          })),
+        }));
+
+        const budgets: Budget[] = (budgetData ?? []).map((r: any) => ({
+          id: r.id,
+          category: r.category,
+          monthlyLimit: r.monthly_limit,
+          month: r.month,
+          year: r.year,
+        }));
+
+        dispatch({ type: 'LOAD_STATE', payload: { transactions, debts, loans, budgets } });
       } finally {
         setLoading(false);
       }
@@ -176,7 +256,6 @@ export function FinanceProvider({ children, userId }: { children: ReactNode; use
         }
         case 'RECORD_DEBT_PAYMENT': {
           const { debtId, payment } = action.payload as { debtId: string; payment: DebtPayment };
-          // Get current debt to compute new paid amount
           const debt = state.debts.find((d) => d.id === debtId);
           if (!debt) break;
           const newPaid = Math.min(debt.paidAmount + payment.amount, debt.totalAmount);
@@ -193,6 +272,64 @@ export function FinanceProvider({ children, userId }: { children: ReactNode; use
             paid_amount: newPaid,
             status: newStatus,
           }).eq('id', debtId);
+          break;
+        }
+
+        case 'ADD_LOAN': {
+          const l = action.payload as Loan;
+          await supabase.from('loans').insert({
+            id: l.id,
+            user_id: userId,
+            borrower_name: l.borrowerName,
+            total_amount: l.totalAmount,
+            paid_amount: 0,
+            loan_date: l.loanDate,
+            due_date: l.dueDate || null,
+            status: l.status,
+            note: l.note,
+          });
+          break;
+        }
+        case 'DELETE_LOAN': {
+          await supabase.from('loans').delete().eq('id', action.payload);
+          break;
+        }
+        case 'RECORD_LOAN_PAYMENT': {
+          const { loanId, payment } = action.payload as { loanId: string; payment: LoanPayment };
+          const loan = state.loans.find((l) => l.id === loanId);
+          if (!loan) break;
+          const newPaid = Math.min(loan.paidAmount + payment.amount, loan.totalAmount);
+          const newStatus = newPaid >= loan.totalAmount ? 'Đã thu hồi' :
+            loan.status === 'Quá hạn' ? 'Quá hạn' : 'Đang vay';
+
+          await supabase.from('loan_payments').insert({
+            id: payment.id,
+            loan_id: loanId,
+            amount: payment.amount,
+            date: payment.date,
+            note: payment.note,
+          });
+          await supabase.from('loans').update({
+            paid_amount: newPaid,
+            status: newStatus,
+          }).eq('id', loanId);
+          break;
+        }
+
+        case 'UPSERT_BUDGET': {
+          const b = action.payload as Budget;
+          await supabase.from('budgets').upsert({
+            id: b.id,
+            user_id: userId,
+            category: b.category,
+            monthly_limit: b.monthlyLimit,
+            month: b.month,
+            year: b.year,
+          }, { onConflict: 'user_id,category,month,year' });
+          break;
+        }
+        case 'DELETE_BUDGET': {
+          await supabase.from('budgets').delete().eq('id', action.payload);
           break;
         }
       }

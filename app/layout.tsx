@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { FinanceProvider } from '@/lib/store/FinanceContext';
 import Sidebar from '@/components/layout/Sidebar';
+import MobileNav from '@/components/layout/MobileNav';
 import { createClient } from '@/lib/supabase/server';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -25,11 +26,14 @@ export default async function RootLayout({
       <body className="bg-[#0f1117] text-slate-200 antialiased">
         {user ? (
           <FinanceProvider userId={user.id}>
-            <div className="flex h-screen overflow-hidden">
-              <Sidebar userEmail={user.email ?? ''} />
-              <main className="flex-1 overflow-y-auto bg-[#0f1117]">
-                {children}
-              </main>
+            <div className="relative">
+              <div className="flex h-screen overflow-hidden">
+                <Sidebar userEmail={user.email ?? ''} />
+                <main className="flex-1 overflow-y-auto bg-[#0f1117] pb-20 lg:pb-0">
+                  {children}
+                </main>
+              </div>
+              <MobileNav />
             </div>
           </FinanceProvider>
         ) : (
